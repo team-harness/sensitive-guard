@@ -121,6 +121,27 @@ describe('secretlint adapter', () => {
     const f = await s.scan(`my token ${tok}`);
     expect(f).toHaveLength(1);
   });
+
+  it('does not let secretlint spans swallow adjacent Chinese text', async () => {
+    const s = createScanner({ detectors: [secretlint()] });
+    const cases: Array<[string, string]> = [
+      ['连接串 postgres://admin:S3cr3t-P4ss@db:5432/app，token 在下面', 'postgres://admin:S3cr3t-P4ss@db:5432/app'],
+      ['mysql://root:Pa55word@10.0.0.1:3306/app。谢谢', 'mysql://root:Pa55word@10.0.0.1:3306/app'],
+    ];
+    for (const [text, span] of cases) {
+      const [f] = await s.scan(text);
+      expect(text.slice(f!.start, f!.end)).toBe(span);
+    }
+  });
+
+  it('keeps the tighter built-in finding when secretlint overlaps it', async () => {
+    const tok = fake.githubPat();
+    const msg = `DATABASE_URL=postgres://admin:S3cr3t-P4ss@db:5432/app，token ${tok}，谢谢`;
+    const s = createScanner({ detectors: [secrets(), secretlint()] });
+    const { text, findings } = await s.redact(msg, { mask: masks.plain });
+    expect(findings.map((f) => f.ruleId)).toEqual(['secret.connection-string-password', 'secret.github-token']);
+    expect(text).toBe('DATABASE_URL=postgres://admin:[REDACTED]@db:5432/app，token [REDACTED]，谢谢');
+  });
 });
 
 describe('performance', () => {

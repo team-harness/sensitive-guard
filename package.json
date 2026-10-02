@@ -1,6 +1,6 @@
 {
   "name": "@team-harness/sensitive-guard",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Detect and redact sensitive content (secrets, credentials, Chinese PII, blocked keywords) in user messages. Zero runtime dependencies, works in Node and browsers.",
   "license": "MIT",
   "type": "module",

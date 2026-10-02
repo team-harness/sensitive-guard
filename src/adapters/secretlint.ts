@@ -77,12 +77,28 @@ export function secretlint(options: SecretlintDetectorOptions = {}): AsyncDetect
           ruleId: `secretlint.${m.messageId}`,
           category: 'secret',
           severity: options.severity ?? 'critical',
-          confidence: 0.9,
+          // Slightly below the built-in provider rules (0.9+): when both fire on the same
+          // span, keep the built-in finding, which is usually tighter (e.g. password only).
+          confidence: 0.85,
           start: m.range[0],
-          end: m.range[1],
+          end: trimEnd(text, m.range[0], m.range[1]),
           description: `${m.ruleId}: ${m.messageId}`,
         }),
       );
     },
   };
+}
+
+/**
+ * secretlint patterns usually stop at whitespace, which Chinese prose doesn't have:
+ * `postgres://u:p@db/app，token 在下面` would swallow `，token`. Cut the span at the
+ * first whitespace / CJK / full-width character — none of these occur in credentials.
+ */
+const SPAN_STOP = /[\s　-〿㐀-䶿一-鿿豈-﫿＀-￯]/;
+
+function trimEnd(text: string, start: number, end: number): number {
+  for (let i = start + 1; i < end; i++) {
+    if (SPAN_STOP.test(text[i]!)) return i;
+  }
+  return end;
 }
