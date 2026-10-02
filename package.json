@@ -1,0 +1,87 @@
+{
+  "name": "@team-harness/sensitive-guard",
+  "version": "0.1.0",
+  "description": "Detect and redact sensitive content (secrets, credentials, Chinese PII, blocked keywords) in user messages. Zero runtime dependencies, works in Node and browsers.",
+  "license": "MIT",
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/team-harness/sensitive-guard.git"
+  },
+  "keywords": [
+    "sensitive",
+    "secret",
+    "secret-scanning",
+    "credentials",
+    "pii",
+    "redact",
+    "dlp",
+    "aho-corasick",
+    "gitleaks",
+    "secretlint",
+    "敏感词",
+    "脱敏"
+  ],
+  "sideEffects": false,
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
+    },
+    "./secretlint": {
+      "import": {
+        "types": "./dist/secretlint.d.ts",
+        "default": "./dist/secretlint.js"
+      },
+      "require": {
+        "types": "./dist/secretlint.d.cts",
+        "default": "./dist/secretlint.cjs"
+      }
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "prepublishOnly": "npm run typecheck && npm test && npm run build"
+  },
+  "peerDependencies": {
+    "@secretlint/core": ">=9",
+    "@secretlint/secretlint-rule-preset-recommend": ">=9"
+  },
+  "peerDependenciesMeta": {
+    "@secretlint/core": {
+      "optional": true
+    },
+    "@secretlint/secretlint-rule-preset-recommend": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@secretlint/core": "^13.0.6",
+    "@secretlint/secretlint-rule-preset-recommend": "^13.0.6",
+    "@types/node": "^22.0.0",
+    "tsup": "^8.5.1",
+    "typescript": "~5.9.3",
+    "vitest": "^3.2.0"
+  }
+}
