@@ -229,6 +229,24 @@ npm run build     # tsup → dist/ (ESM + CJS + d.ts)
 
 测试里的所有假凭证都在运行时用带种子的伪随机数拼接生成（见 `test/helpers.ts`），仓库中不存在任何字面量密钥。
 
+## 发布
+
+使用 npm Trusted Publishing（GitHub Actions OIDC，不需要 NPM_TOKEN），流程见 `.github/workflows/publish-npm.yml`：
+
+1. 在 main 上把 `package.json` 的 `version` 改成新版本，比如 `0.1.1`
+2. 创建 GitHub Release，tag 用**不带 v 前缀**的同一个版本号（`0.1.1`）。勾选 pre-release 会发布到 `next` dist-tag
+3. workflow 会校验 tag、版本号和 main 三者一致，跑类型检查、测试、构建和打包后的消费者冒烟测试，然后带 provenance 发布
+
+**首次发布（只需一次）：** npm 不允许给还不存在的包配置 trusted publisher，所以 0.1.0 要由有 `@team-harness` 写权限的维护者手动发布：
+
+```bash
+npm login
+npm ci && npm run build
+npm publish --access public
+```
+
+发布后到 npmjs.com → `@team-harness/sensitive-guard` → Settings → Trusted Publisher，添加 GitHub Actions：org `team-harness`，repo `sensitive-guard`，workflow `publish-npm.yml`。之后的版本都通过 Release 自动发布。
+
 ## 致谢
 
 部分密钥规则的正则改编自 [gitleaks](https://github.com/gitleaks/gitleaks)（MIT）和 [secretlint](https://github.com/secretlint/secretlint)（MIT）。

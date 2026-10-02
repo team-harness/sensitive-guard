@@ -1,0 +1,112 @@
+name: Publish npm
+
+# Publishes @team-harness/sensitive-guard when a GitHub Release is published.
+# Auth is npm Trusted Publishing (OIDC) — no NPM_TOKEN secret. Configure it once on
+# npmjs.com → package → Settings → Trusted Publisher:
+#   GitHub Actions · org: team-harness · repo: sensitive-guard · workflow: publish-npm.yml
+#
+# Release flow: bump "version" in package.json on main → create a Release whose tag
+# is the same unprefixed semver (e.g. 0.1.1) → this workflow verifies and publishes.
+
+on:
+  release:
+    types: [published]
+
+concurrency:
+  group: sensitive-guard-npm-publish
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: github.event.release.draft == false
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      id-token: write # npm trusted publishing + provenance
+    env:
+      NPM_CONFIG_REGISTRY: https://registry.npmjs.org
+      RELEASE_SHA: ${{ github.sha }}
+      RELEASE_TAG: ${{ github.event.release.tag_name }}
+      PRERELEASE: ${{ github.event.release.prerelease }}
+    steps:
+      - name: Checkout release commit
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: "22.22.3"
+
+      - name: Install pinned npm (trusted publishing needs npm >= 11.5.1)
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --global npm@12.0.2 --ignore-scripts --registry=https://registry.npmjs.org
+          test "$(npm --version)" = "12.0.2"
+
+      - name: Verify release tag matches package version and main
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ ! "$RELEASE_TAG" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "Release tag must be an unprefixed semver, got: $RELEASE_TAG" >&2
+            exit 1
+          fi
+          PKG_VERSION="$(node -p "require('./package.json').version")"
+          if [[ "$PKG_VERSION" != "$RELEASE_TAG" ]]; then
+            echo "package.json version ($PKG_VERSION) != release tag ($RELEASE_TAG)" >&2
+            exit 1
+          fi
+          test "$(git rev-parse "refs/tags/${RELEASE_TAG}^{commit}")" = "$RELEASE_SHA"
+          git merge-base --is-ancestor "$RELEASE_SHA" refs/remotes/origin/main
+
+      - name: Install dependencies from lockfile
+        run: npm ci
+
+      - name: Typecheck, test, build
+        run: |
+          npm run typecheck
+          npm test
+          npm run build
+
+      - name: Smoke the packed tarball as a consumer
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm pack --ignore-scripts --pack-destination "$RUNNER_TEMP"
+          TARBALL="$(ls "$RUNNER_TEMP"/team-harness-sensitive-guard-*.tgz)"
+          CONSUMER="$RUNNER_TEMP/consumer"
+          mkdir -p "$CONSUMER"
+          npm install --prefix "$CONSUMER" "$TARBALL" --ignore-scripts --no-audit --no-fund
+          cd "$CONSUMER"
+          node -e "const g=require('@team-harness/sensitive-guard'); const s=g.createScanner(); if(!s.scanSync('postgres://u:Xk29pq7z@db/app').length) process.exit(1)"
+          node --input-type=module -e "import { createScanner } from '@team-harness/sensitive-guard'; if (!createScanner().scanSync('手机 13812345678').length) process.exit(1)"
+
+      - name: Publish with provenance
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "$PRERELEASE" == "true" ]]; then
+            npm publish --ignore-scripts --provenance --access public --tag next
+          else
+            npm publish --ignore-scripts --provenance --access public
+          fi
+
+      - name: Confirm version is on the registry
+        shell: bash
+        run: |
+          set -euo pipefail
+          for i in 1 2 3 4 5 6; do
+            if [[ "$(npm view "@team-harness/sensitive-guard@${RELEASE_TAG}" version 2>/dev/null)" == "$RELEASE_TAG" ]]; then
+              echo "published @team-harness/sensitive-guard@${RELEASE_TAG}"
+              exit 0
+            fi
+            sleep $((i * 10))
+          done
+          echo "version not visible on registry yet" >&2
+          exit 1

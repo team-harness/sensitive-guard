@@ -83,5 +83,13 @@
     "tsup": "^8.5.1",
     "typescript": "~5.9.3",
     "vitest": "^3.2.0"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "homepage": "https://github.com/team-harness/sensitive-guard#readme",
+  "bugs": {
+    "url": "https://github.com/team-harness/sensitive-guard/issues"
   }
 }
